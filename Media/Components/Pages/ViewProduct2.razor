@@ -1,0 +1,181 @@
+@page "/products2/view/{id:int}"
+@rendermode InteractiveServer
+
+@using Media.Services
+@inject Products2Service Products2Service
+@inject NavigationManager NavigationManager
+
+<PageTitle>View Product2</PageTitle>
+
+<div class="container mt-4">
+    @if (isLoading)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-3">Loading product details...</p>
+        </div>
+    }
+    else if (details is null)
+    {
+        <div class="alert alert-danger">Product not found.</div>
+        <button class="btn btn-outline-secondary" @onclick="BackToList">Back</button>
+    }
+    else
+    {
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/products2">Products2</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@details.Product.Name</li>
+            </ol>
+        </nav>
+
+        <div class="row">
+            <div class="col-lg-7 mb-4">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Media Gallery</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (selectedMedia is null)
+                        {
+                            <div class="text-muted">No media available.</div>
+                        }
+                        else if (IsVideo(selectedMedia.MediaURL))
+                        {
+                            <video controls class="w-100" style="max-height: 500px;">
+                                <source src="/@selectedMedia.MediaURL" type="video/mp4" />
+                            </video>
+                        }
+                        else
+                        {
+                            <img src="/@selectedMedia.MediaURL" alt="@details.Product.Name" class="img-fluid rounded" style="max-height: 500px; width:100%; object-fit: contain;" />
+                        }
+
+                        @if (details.MediaItems.Count > 1)
+                        {
+                            <div class="mt-3 d-flex flex-wrap gap-2">
+                                @foreach (var media in details.MediaItems)
+                                {
+                                    <button type="button"
+                                            class="btn btn-sm @(selectedMedia == media ? "btn-primary" : "btn-outline-secondary")"
+                                            @onclick="() => SelectMedia(media)">
+                                        @(IsVideo(media.MediaURL) ? "Video" : "Image")
+                                        @if (media.IsPrimary)
+                                        {
+                                            <span class="ms-1">(Primary)</span>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5 mb-4">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Product Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2"><span class="badge bg-secondary">ID: @details.Product.ID</span></div>
+                        <h3>@details.Product.Name</h3>
+                        <p class="text-muted">@(string.IsNullOrWhiteSpace(details.Product.Info) ? "No description" : details.Product.Info)</p>
+
+                        <div class="d-flex gap-2 mb-4">
+                            <span class="badge bg-success">Media: @details.MediaItems.Count</span>
+                            <span class="badge bg-danger">Videos: @details.MediaItems.Count(m => IsVideo(m.MediaURL))</span>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-warning" @onclick="EditProduct">Edit</button>
+                            <button class="btn btn-outline-danger" @onclick="AskDelete">Delete</button>
+                            <button class="btn btn-outline-secondary" @onclick="BackToList">Back to list</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Delete this product and all its media relations?</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Products2Service.Product2Details? details;
+    private Products2Service.Product2MediaLink? selectedMedia;
+    private bool isLoading = true;
+    private bool showDeleteModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        details = await Products2Service.GetDetailsAsync(Id);
+        selectedMedia = details?.MediaItems.FirstOrDefault(m => m.IsPrimary) ?? details?.MediaItems.FirstOrDefault();
+        isLoading = false;
+    }
+
+    private void SelectMedia(Products2Service.Product2MediaLink media)
+    {
+        selectedMedia = media;
+    }
+
+    private void EditProduct()
+    {
+        NavigationManager.NavigateTo($"/products2/edit/{Id}");
+    }
+
+    private void AskDelete()
+    {
+        showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteModal = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        await Products2Service.DeleteAsync(Id);
+        showDeleteModal = false;
+        NavigationManager.NavigateTo("/products2");
+    }
+
+    private void BackToList()
+    {
+        NavigationManager.NavigateTo("/products2");
+    }
+
+    private static bool IsVideo(string mediaUrl)
+    {
+        string ext = Path.GetExtension(mediaUrl).ToLowerInvariant();
+        return ext is ".mp4" or ".avi" or ".mov" or ".wmv" or ".mkv" or ".webm";
+    }
+}

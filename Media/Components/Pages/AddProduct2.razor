@@ -1,0 +1,254 @@
+@page "/products2/add"
+@rendermode InteractiveServer
+
+@using Media.Services
+@using MediaModels
+@using Microsoft.AspNetCore.Components.Forms
+@inject Products2Service Products2Service
+@inject NavigationManager NavigationManager
+@inject IWebHostEnvironment Environment
+
+<PageTitle>Add Product (Many Media)</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="bi bi-plus-circle"></i> Add Product (Many Media)</h3>
+                </div>
+                <div class="card-body p-4">
+                    <EditForm Model="@product" OnValidSubmit="HandleValidSubmit">
+                        <DataAnnotationsValidator />
+
+                        @if (!string.IsNullOrWhiteSpace(errorMessage))
+                        {
+                            <div class="alert alert-danger">@errorMessage</div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(successMessage))
+                        {
+                            <div class="alert alert-success">@successMessage</div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Name</label>
+                            <InputText class="form-control form-control-lg" @bind-Value="product.Name" />
+                            <ValidationMessage For="@(() => product.Name)" class="text-danger" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Info</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="product.Info" />
+                            <ValidationMessage For="@(() => product.Info)" class="text-danger" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Add Images</label>
+                            <InputFile class="form-control" OnChange="HandleImagesSelected" multiple accept="image/*" />
+                            <small class="text-muted">You can select multiple files (max 10MB each).</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Add Videos</label>
+                            <InputFile class="form-control" OnChange="HandleVideosSelected" multiple accept="video/*" />
+                            <small class="text-muted">You can select multiple files (max 50MB each).</small>
+                        </div>
+
+                        @if (isUploading)
+                        {
+                            <div class="mb-3">
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%">Uploading files...</div>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="mb-0">Media Items (@mediaItems.Count)</h5>
+                                @if (mediaItems.Count == 0)
+                                {
+                                    <span class="text-danger small">At least one image/video is required</span>
+                                }
+                            </div>
+
+                            @if (mediaItems.Count > 0)
+                            {
+                                @for (int index = 0; index < mediaItems.Count; index++)
+                                {
+                                    var item = mediaItems[index];
+                                    <div class="card mb-2">
+                                        <div class="card-body py-2 d-flex justify-content-between align-items-center gap-3">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <input type="radio" name="primaryMedia" checked="@(primaryIndex == index)" @onchange="() => primaryIndex = index" />
+                                                <span class="badge @(item.IsVideo ? "bg-danger" : "bg-success")">@(item.IsVideo ? "Video" : "Image")</span>
+                                                <span class="text-break">@item.MediaURL</span>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveMedia(index)">Remove</button>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary btn-lg" @onclick="Cancel" disabled="@isSubmitting">Cancel</button>
+                            <button type="submit" class="btn btn-primary btn-lg" disabled="@(isSubmitting || isUploading)">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span><span>Saving...</span>
+                                }
+                                else
+                                {
+                                    <span>Save Product</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const long MaxImageFileSize = 10 * 1024 * 1024;
+    private const long MaxVideoFileSize = 50 * 1024 * 1024;
+
+    private readonly Products2 product = new();
+    private readonly List<MediaUploadItem> mediaItems = new();
+
+    private int primaryIndex = 0;
+    private bool isSubmitting;
+    private bool isUploading;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    private async Task HandleImagesSelected(InputFileChangeEventArgs args)
+    {
+        await SaveSelectedFiles(args.GetMultipleFiles(), "images", MaxImageFileSize, false);
+    }
+
+    private async Task HandleVideosSelected(InputFileChangeEventArgs args)
+    {
+        await SaveSelectedFiles(args.GetMultipleFiles(), "videos", MaxVideoFileSize, true);
+    }
+
+    private async Task SaveSelectedFiles(IReadOnlyList<IBrowserFile> files, string folderName, long maxSize, bool isVideo)
+    {
+        isUploading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            string uploadsPath = Path.Combine(Environment.WebRootPath, "uploads", folderName);
+            Directory.CreateDirectory(uploadsPath);
+
+            foreach (var file in files)
+            {
+                if (file.Size > maxSize)
+                {
+                    errorMessage = $"File '{file.Name}' exceeds size limit.";
+                    continue;
+                }
+
+                string fileName = $"{Guid.NewGuid()}_{file.Name}";
+                string fullPath = Path.Combine(uploadsPath, fileName);
+
+                await using FileStream stream = new(fullPath, FileMode.Create);
+                await file.OpenReadStream(maxSize).CopyToAsync(stream);
+
+                mediaItems.Add(new MediaUploadItem
+                {
+                    MediaURL = $"uploads/{folderName}/{fileName}",
+                    IsVideo = isVideo
+                });
+            }
+
+            if (primaryIndex >= mediaItems.Count)
+            {
+                primaryIndex = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Upload error: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private void RemoveMedia(int index)
+    {
+        if (index < 0 || index >= mediaItems.Count)
+        {
+            return;
+        }
+
+        mediaItems.RemoveAt(index);
+
+        if (mediaItems.Count == 0)
+        {
+            primaryIndex = 0;
+        }
+        else if (primaryIndex >= mediaItems.Count)
+        {
+            primaryIndex = mediaItems.Count - 1;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (mediaItems.Count == 0)
+        {
+            errorMessage = "Please upload at least one media item.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        try
+        {
+            var payload = mediaItems
+                .Select(item => new MediaItem { MediaURL = item.MediaURL })
+                .ToList();
+
+            int newId = await Products2Service.CreateAsync(product, payload, primaryIndex);
+
+            if (newId > 0)
+            {
+                successMessage = $"Product created with ID {newId}.";
+                await Task.Delay(1200);
+                NavigationManager.NavigateTo("/products2");
+            }
+            else
+            {
+                errorMessage = "Create failed.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Create failed: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/products2");
+    }
+
+    private class MediaUploadItem
+    {
+        public string MediaURL { get; set; } = string.Empty;
+        public bool IsVideo { get; set; }
+    }
+}

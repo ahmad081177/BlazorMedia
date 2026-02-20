@@ -1,0 +1,347 @@
+﻿@page "/products/view/{id:int}"
+@rendermode InteractiveServer
+
+@using MediaModels
+@using Media.Services
+@inject ProductsService ProductService
+@inject NavigationManager NavigationManager
+
+<PageTitle>View Product</PageTitle>
+
+<div class="container mt-4">
+    @if (isLoading)
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Loading product details...</p>
+        </div>
+    }
+    else if (product == null)
+    {
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> Product not found!
+                </div>
+                <button class="btn btn-primary" @onclick="GoBack">
+                    <i class="bi bi-arrow-left"></i> Back to Products
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/products" class="text-decoration-none">Products</a></li>
+                <li class="breadcrumb-item active" aria-current="page">@product.Name</li>
+            </ol>
+        </nav>
+
+        <div class="row">
+            <!-- Left Column - Images & Video -->
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-images"></i> Product Media</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <!-- Main Image Display -->
+                        <div class="main-image-container" style="background-color: #f8f9fa; min-height: 400px;">
+                            @if (!string.IsNullOrEmpty(currentImage))
+                            {
+                                <img src="/@currentImage"
+                                     alt="@product.Name"
+                                     class="img-fluid w-100"
+                                     style="max-height: 500px; object-fit: contain;"
+                                     onerror="this.onerror=null; this.src='/images/no-image.png';" />
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center justify-content-center" style="height: 400px;">
+                                    <div class="text-center text-muted">
+                                        <i class="bi bi-image" style="font-size: 5rem;"></i>
+                                        <p class="mt-3">No image available</p>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Thumbnail Gallery -->
+                        @if (HasMultipleImages())
+                        {
+                            <div class="p-3 bg-light border-top">
+                                <div class="d-flex gap-2">
+                                    @if (!string.IsNullOrEmpty(product.Image1))
+                                    {
+                                        <div class="thumbnail-wrapper @(currentImage == product.Image1 ? "active" : "")"
+                                             @onclick="() => SelectImage(product.Image1)">
+                                            <img src="/@product.Image1"
+                                                 alt="Image 1"
+                                                 class="img-thumbnail cursor-pointer"
+                                                 style="width: 100px; height: 100px; object-fit: cover;" />
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(product.Image2))
+                                    {
+                                        <div class="thumbnail-wrapper @(currentImage == product.Image2 ? "active" : "")"
+                                             @onclick="() => SelectImage(product.Image2)">
+                                            <img src="/@product.Image2"
+                                                 alt="Image 2"
+                                                 class="img-thumbnail cursor-pointer"
+                                                 style="width: 100px; height: 100px; object-fit: cover;" />
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Video Section -->
+                        @if (!string.IsNullOrEmpty(product.Video))
+                        {
+                            <div class="p-3 border-top">
+                                <h6 class="mb-3"><i class="bi bi-camera-video"></i> Product Video</h6>
+                                <video controls class="w-100" style="max-height: 400px;">
+                                    <source src="/@product.Video" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Product Details -->
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Product Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Product ID Badge -->
+                        <div class="mb-3">
+                            <span class="badge bg-secondary">ID: @product.ID</span>
+                        </div>
+
+                        <!-- Product Name -->
+                        <h2 class="mb-3">@product.Name</h2>
+
+                        <!-- Product Info -->
+                        <div class="mb-4">
+                            <h5 class="text-muted mb-2">
+                                <i class="bi bi-file-text"></i> Description
+                            </h5>
+                            @if (!string.IsNullOrEmpty(product.Info))
+                            {
+                                <p class="lead">@product.Info</p>
+                            }
+                            else
+                            {
+                                <p class="text-muted fst-italic">No description available</p>
+                            }
+                        </div>
+
+                        <!-- Media Summary -->
+                        <div class="card bg-light mb-4">
+                            <div class="card-body">
+                                <h6 class="card-title mb-3">
+                                    <i class="bi bi-collection"></i> Media Assets
+                                </h6>
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-image text-primary me-2" style="font-size: 1.5rem;"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Images</small>
+                                                <strong>@GetImageCount()</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-camera-video text-danger me-2" style="font-size: 1.5rem;"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Videos</small>
+                                                <strong>@(string.IsNullOrEmpty(product.Video) ? "0" : "1")</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- File Paths (Collapsible) -->
+                        <div class="accordion mb-4" id="filePathsAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#filePaths">
+                                        <i class="bi bi-folder me-2"></i> File Paths
+                                    </button>
+                                </h2>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-warning btn-lg" @onclick="EditProduct">
+                                <i class="bi bi-pencil"></i> Edit Product
+                            </button>
+                            <button class="btn btn-outline-danger" @onclick="DeleteProduct">
+                                <i class="bi bi-trash"></i> Delete Product
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="GoBack">
+                                <i class="bi bi-arrow-left"></i> Back to Products
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Delete Confirmation Modal -->
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this product?</p>
+                    <p class="fw-bold">@product?.Name</p>
+                    <p class="text-danger"><small>This action cannot be undone.</small></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    .thumbnail-wrapper {
+        border: 3px solid transparent;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+        .thumbnail-wrapper:hover {
+            border-color: #0d6efd;
+            transform: scale(1.05);
+        }
+
+        .thumbnail-wrapper.active {
+            border-color: #198754;
+            box-shadow: 0 0 10px rgba(25, 135, 84, 0.5);
+        }
+
+    .main-image-container img {
+        transition: transform 0.3s ease;
+    }
+
+    .main-image-container:hover img {
+        transform: scale(1.02);
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Products product;
+    private bool isLoading = true;
+    private bool showDeleteModal = false;
+    private bool showCopyToast = false;
+    private string currentImage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProduct();
+    }
+
+    private async Task LoadProduct()
+    {
+        isLoading = true;
+        product = await ProductService.GetByIdAsync(Id);
+
+        if (product != null)
+        {
+            // Set initial image
+            currentImage = !string.IsNullOrEmpty(product.Image1) ? product.Image1 : product.Image2;
+        }
+
+        isLoading = false;
+    }
+
+    private void SelectImage(string imagePath)
+    {
+        currentImage = imagePath;
+    }
+
+    private bool HasMultipleImages()
+    {
+        return !string.IsNullOrEmpty(product.Image1) && !string.IsNullOrEmpty(product.Image2);
+    }
+
+    private int GetImageCount()
+    {
+        int count = 0;
+        if (!string.IsNullOrEmpty(product.Image1)) count++;
+        if (!string.IsNullOrEmpty(product.Image2)) count++;
+        return count;
+    }
+
+    private void EditProduct()
+    {
+        NavigationManager.NavigateTo($"/products/edit/{product.ID}");
+    }
+
+    private void DeleteProduct()
+    {
+        showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteModal = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (product != null)
+        {
+            bool success = await ProductService.DeleteAsync(product.ID);
+
+            if (success)
+            {
+                NavigationManager.NavigateTo("/products");
+            }
+        }
+
+        showDeleteModal = false;
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/products");
+    }
+}

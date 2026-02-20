@@ -1,0 +1,407 @@
+﻿@page "/products/add"
+@rendermode InteractiveServer
+
+@using MediaModels
+@using Media.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject ProductsService ProductService
+@inject NavigationManager NavigationManager
+@inject IWebHostEnvironment Environment
+
+<PageTitle>Add New Product</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="bi bi-plus-circle"></i> Add New Product
+                    </h3>
+                </div>
+                <div class="card-body p-4">
+                    <EditForm Model="@newProduct" OnValidSubmit="@HandleValidSubmit">
+                        <DataAnnotationsValidator />
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
+                                <button type="button" class="btn-close" @onclick="@(() => errorMessage = string.Empty)"></button>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(successMessage))
+                        {
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                <i class="bi bi-check-circle-fill"></i> @successMessage
+                                <button type="button" class="btn-close" @onclick="@(() => successMessage = string.Empty)"></button>
+                            </div>
+                        }
+
+                        <!-- Product Name -->
+                        <div class="mb-3">
+                            <label for="productName" class="form-label fw-bold">
+                                <i class="bi bi-tag"></i> Product Name <span class="text-danger">*</span>
+                            </label>
+                            <InputText id="productName"
+                                       class="form-control form-control-lg"
+                                       @bind-Value="newProduct.Name"
+                                       placeholder="Enter product name" />
+                            <ValidationMessage For="@(() => newProduct.Name)" class="text-danger" />
+                        </div>
+
+                        <!-- Product Info -->
+                        <div class="mb-3">
+                            <label for="productInfo" class="form-label fw-bold">
+                                <i class="bi bi-info-circle"></i> Product Information
+                            </label>
+                            <InputTextArea id="productInfo"
+                                           class="form-control"
+                                           rows="4"
+                                           @bind-Value="newProduct.Info"
+                                           placeholder="Enter product description and details" />
+                            <ValidationMessage For="@(() => newProduct.Info)" class="text-danger" />
+                        </div>
+
+                        <!-- Primary Image -->
+                        <div class="mb-3">
+                            <label for="image1" class="form-label fw-bold">
+                                <i class="bi bi-image"></i> Primary Image <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <InputFile id="image1Input"
+                                           class="form-control"
+                                           OnChange="@(e => HandleFileSelected(e, 1))"
+                                           accept="image/*" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="@(() => ClearFile(1))">
+                                    <i class="bi bi-x-circle"></i> Clear
+                                </button>
+                            </div>
+                            @if (!string.IsNullOrEmpty(newProduct.Image1))
+                            {
+                                <div class="mt-2">
+                                    <small class="text-success">
+                                        <i class="bi bi-check-circle"></i> Selected: <strong>@newProduct.Image1</strong>
+                                    </small>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(image1Preview))
+                            {
+                                <div class="mt-2">
+                                    <img src="@image1Preview" alt="Preview" class="img-thumbnail" style="max-height: 150px;" />
+                                </div>
+                            }
+                            <ValidationMessage For="@(() => newProduct.Image1)" class="text-danger" />
+                        </div>
+
+                        <!-- Secondary Image -->
+                        <div class="mb-3">
+                            <label for="image2" class="form-label fw-bold">
+                                <i class="bi bi-image"></i> Secondary Image (Optional)
+                            </label>
+                            <div class="input-group">
+                                <InputFile id="image2Input"
+                                           class="form-control"
+                                           OnChange="@(e => HandleFileSelected(e, 2))"
+                                           accept="image/*" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="@(() => ClearFile(2))">
+                                    <i class="bi bi-x-circle"></i> Clear
+                                </button>
+                            </div>
+                            @if (!string.IsNullOrEmpty(newProduct.Image2))
+                            {
+                                <div class="mt-2">
+                                    <small class="text-success">
+                                        <i class="bi bi-check-circle"></i> Selected: <strong>@newProduct.Image2</strong>
+                                    </small>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(image2Preview))
+                            {
+                                <div class="mt-2">
+                                    <img src="@image2Preview" alt="Preview" class="img-thumbnail" style="max-height: 150px;" />
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Video -->
+                        <div class="mb-4">
+                            <label for="video" class="form-label fw-bold">
+                                <i class="bi bi-camera-video"></i> Product Video (Optional)
+                            </label>
+                            <div class="input-group">
+                                <InputFile id="videoInput"
+                                           class="form-control"
+                                           OnChange="@HandleVideoSelected"
+                                           accept="video/*" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="@(() => ClearFile(3))">
+                                    <i class="bi bi-x-circle"></i> Clear
+                                </button>
+                            </div>
+                            @if (!string.IsNullOrEmpty(newProduct.Video))
+                            {
+                                <div class="mt-2">
+                                    <small class="text-success">
+                                        <i class="bi bi-check-circle"></i> Selected: <strong>@newProduct.Video</strong>
+                                    </small>
+                                </div>
+                            }
+                            <small class="form-text text-muted">Supported formats: MP4, AVI, MOV, etc.</small>
+                        </div>
+
+                        <!-- Upload Progress -->
+                        @if (isUploading)
+                        {
+                            <div class="mb-3">
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                         role="progressbar"
+                                         style="width: 100%">
+                                        Uploading files...
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button"
+                                    class="btn btn-outline-secondary btn-lg"
+                                    @onclick="Cancel"
+                                    disabled="@isSubmitting">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                            <button type="submit"
+                                    class="btn btn-primary btn-lg"
+                                    disabled="@(isSubmitting || isUploading)">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>Saving...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-save"></i>
+                                    <span>Save Product</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+
+            <!-- Preview Card -->
+            @if (!string.IsNullOrEmpty(newProduct.Name))
+            {
+                <div class="card shadow mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-eye"></i> Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <h4>@newProduct.Name</h4>
+                        <p class="text-muted">@(string.IsNullOrEmpty(newProduct.Info) ? "No description provided" : newProduct.Info)</p>
+
+                        <div class="row">
+                            @if (!string.IsNullOrEmpty(image1Preview))
+                            {
+                                <div class="col-md-6 mb-3">
+                                    <strong>Primary Image:</strong>
+                                    <img src="@image1Preview" alt="Primary" class="img-fluid rounded mt-2" />
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(image2Preview))
+                            {
+                                <div class="col-md-6 mb-3">
+                                    <strong>Secondary Image:</strong>
+                                    <img src="@image2Preview" alt="Secondary" class="img-fluid rounded mt-2" />
+                                </div>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(newProduct.Video))
+                        {
+                            <div class="mt-2">
+                                <strong>Video:</strong> <code>@newProduct.Video</code>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private Products newProduct = new Products();
+    private bool isSubmitting = false;
+    private bool isUploading = false;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    private string image1Preview = string.Empty;
+    private string image2Preview = string.Empty;
+
+    private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e, int imageNumber)
+    {
+        isUploading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var file = e.File;
+
+            if (file.Size > MaxFileSize)
+            {
+                errorMessage = $"File size exceeds 10 MB limit. Selected file: {file.Size / 1024 / 1024:F2} MB";
+                return;
+            }
+
+            // Create uploads directory if it doesn't exist
+            var uploadsPath = Path.Combine(Environment.WebRootPath, "uploads", "images");
+            Directory.CreateDirectory(uploadsPath);
+
+            // Generate unique filename
+            var fileName = $"{Guid.NewGuid()}_{file.Name}";
+            var filePath = Path.Combine(uploadsPath, fileName);
+
+            // Save the file
+            await using FileStream fs = new(filePath, FileMode.Create);
+            await file.OpenReadStream(MaxFileSize).CopyToAsync(fs);
+
+            // Store the relative path
+            var relativePath = $"uploads/images/{fileName}";
+
+            if (imageNumber == 1)
+            {
+                newProduct.Image1 = relativePath;
+                // Create preview
+                image1Preview = $"/{relativePath}";
+            }
+            else if (imageNumber == 2)
+            {
+                newProduct.Image2 = relativePath;
+                // Create preview
+                image2Preview = $"/{relativePath}";
+            }
+
+            successMessage = $"Image {imageNumber} uploaded successfully!";
+            await Task.Delay(2000);
+            successMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error uploading file: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task HandleVideoSelected(InputFileChangeEventArgs e)
+    {
+        isUploading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var file = e.File;
+
+            if (file.Size > MaxFileSize * 5) // 50 MB for videos
+            {
+                errorMessage = $"Video size exceeds 50 MB limit. Selected file: {file.Size / 1024 / 1024:F2} MB";
+                return;
+            }
+
+            // Create uploads directory if it doesn't exist
+            var uploadsPath = Path.Combine(Environment.WebRootPath, "uploads", "videos");
+            Directory.CreateDirectory(uploadsPath);
+
+            // Generate unique filename
+            var fileName = $"{Guid.NewGuid()}_{file.Name}";
+            var filePath = Path.Combine(uploadsPath, fileName);
+
+            // Save the file
+            await using FileStream fs = new(filePath, FileMode.Create);
+            await file.OpenReadStream(MaxFileSize * 5).CopyToAsync(fs);
+
+            // Store the relative path
+            newProduct.Video = $"uploads/videos/{fileName}";
+
+            successMessage = "Video uploaded successfully!";
+            await Task.Delay(2000);
+            successMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error uploading video: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private void ClearFile(int fileNumber)
+    {
+        switch (fileNumber)
+        {
+            case 1:
+                newProduct.Image1 = string.Empty;
+                image1Preview = string.Empty;
+                break;
+            case 2:
+                newProduct.Image2 = string.Empty;
+                image2Preview = string.Empty;
+                break;
+            case 3:
+                newProduct.Video = string.Empty;
+                break;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        try
+        {
+            // Call the ProductService to create the product
+            int newId = await ProductService.CreateAsync(newProduct);
+
+            if (newId > 0)
+            {
+                successMessage = $"Product '{newProduct.Name}' has been successfully added with ID: {newId}";
+
+                // Wait a moment to show the success message
+                await Task.Delay(1500);
+
+                // Navigate to products list page
+                NavigationManager.NavigateTo("/products");
+            }
+            else
+            {
+                errorMessage = "Failed to add product. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/products");
+    }
+}
